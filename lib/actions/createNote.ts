@@ -19,7 +19,6 @@ import { PostBoxAttachment } from '../models/attachment'
 import { StatusType } from '../models/status'
 import { Storage } from '../storage/types'
 import { addStatusToTimelines } from '../timelines'
-import { getSpan } from '../trace'
 import { recordActorIfNeeded } from './utils'
 
 interface CreateNoteParams {
@@ -30,8 +29,6 @@ export const createNote = async ({
   note,
   storage
 }: CreateNoteParams): Promise<Note | null> => {
-  const span = getSpan('actions', 'createNote', { status: note.id })
-
   const existingStatus = await storage.getStatus({
     statusId: note.id,
     withReplies: false
@@ -45,7 +42,6 @@ export const createNote = async ({
     ...note
   })) as Note
   if (compactNote.type !== StatusType.Note) {
-    span?.finish()
     return null
   }
 
@@ -96,7 +92,6 @@ export const createNote = async ({
     )
   ])
 
-  span?.finish()
   return note
 }
 
@@ -114,7 +109,6 @@ export const createNoteFromUserInput = async ({
   attachments = [],
   storage
 }: CreateNoteFromUserInputParams) => {
-  const span = getSpan('actions', 'createNoteFromUser', { text, replyNoteId })
   const replyStatus = replyNoteId
     ? await storage.getStatus({ statusId: replyNoteId, withReplies: false })
     : undefined
@@ -163,7 +157,6 @@ export const createNoteFromUserInput = async ({
 
   const status = await storage.getStatus({ statusId, withReplies: false })
   if (!status) {
-    span?.finish()
     return null
   }
 
@@ -200,6 +193,5 @@ export const createNoteFromUserInput = async ({
     })
   )
 
-  span?.finish()
   return status
 }

@@ -10,7 +10,6 @@ import { ERROR_400, ERROR_500 } from './responses'
 import { parse, verify } from './signature'
 import { getStorage } from './storage'
 import { Storage } from './storage/types'
-import { getSpan } from './trace'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
@@ -18,10 +17,8 @@ const ACTIVITIES_HOST = 'x-activity-next-host'
 const FORWARDED_HOST = 'x-forwarded-host'
 
 async function getSenderPublicKey(storage: Storage, actorId: string) {
-  const span = getSpan('guard', 'getSenderPublicKey', { actorId })
   const localActor = await storage.getActorFromId({ id: actorId })
   if (localActor) {
-    span?.finish()
     return localActor.publicKey
   }
 
@@ -31,7 +28,6 @@ async function getSenderPublicKey(storage: Storage, actorId: string) {
     withPublicKey: true
   })
 
-  span?.finish()
   if (sender) return sender.publicKey || ''
   return ''
 }

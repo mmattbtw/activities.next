@@ -5,7 +5,6 @@ import util from 'util'
 
 import { getConfig } from './config'
 import { Actor } from './models/actor'
-import { getSpan } from './trace'
 
 export const SIGNATURE_GRAMMAR = `
 pairs = (","? pair:pair { return pair })+
@@ -34,13 +33,8 @@ export async function verify(
   headers: IncomingHttpHeaders,
   publicKey: string
 ) {
-  const span = getSpan('signature', 'verify', {
-    requestTarget
-  })
-
   const headerSignature = await parse(headers.signature as string)
   if (!headerSignature.headers) {
-    span?.finish()
     return false
   }
 
@@ -58,10 +52,8 @@ export async function verify(
   const verifier = crypto.createVerify(headerSignature.algorithm)
   verifier.update(comparedSignedString)
   try {
-    span?.finish()
     return verifier.verify(publicKey, signature, 'base64')
   } catch {
-    span?.finish()
     return false
   }
 }

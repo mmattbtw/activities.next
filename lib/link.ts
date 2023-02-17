@@ -5,7 +5,6 @@ import { Mention } from './activities/entities/mention'
 import './linkify-mention'
 import { Actor } from './models/actor'
 import { Status } from './models/status'
-import { getSpan } from './trace'
 
 const LINK_BODY_LIMIT = 25
 
@@ -129,12 +128,6 @@ export const getMentions = async ({
   currentActor,
   replyStatus
 }: GetMentionsParams): Promise<Mention[]> => {
-  const span = getSpan('link', 'getMentions', {
-    text,
-    actorId: currentActor.id,
-    replyStatusId: replyStatus?.id
-  })
-
   const mentions = await Promise.all(
     linkify
       .find(text)
@@ -175,6 +168,5 @@ export const getMentions = async ({
       return out
     }, {} as { [key: string]: Mention })
 
-  span?.finish()
   return Object.values(mentionsMap)
 }

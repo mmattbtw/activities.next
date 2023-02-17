@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/nextjs'
 import crypto from 'crypto'
 
 import {
@@ -16,7 +15,6 @@ import {
 } from '../models/status'
 import { signedHeaders } from '../signature'
 import { getISOTimeUTC } from '../time'
-import { getSpan } from '../trace'
 import { AcceptFollow } from './actions/acceptFollow'
 import { AnnounceStatus } from './actions/announceStatus'
 import { CreateStatus } from './actions/createStatus'
@@ -96,7 +94,6 @@ const fetchWithTimeout = async ({
 export const getWebfingerSelf = async (account: string) => {
   const [user, domain] = account.split('@')
   if (!user || !domain) return null
-  const span = getSpan('activities', 'getWebfingerSelf', { account })
   try {
     const response = await fetch(
       `https://${domain}/.well-known/webfinger?resource=acct:${account}`,
@@ -107,20 +104,16 @@ export const getWebfingerSelf = async (account: string) => {
       }
     )
     if (response.status !== 200) {
-      span?.finish()
       return null
     }
 
     const json = (await response.json()) as WebFinger
     const item = json.links.find((item) => item.rel === 'self')
-    span?.finish()
     if (!item || !('href' in item)) {
       return null
     }
     return item.href
   } catch (error) {
-    Sentry.captureException(error)
-    span?.finish()
     return null
   }
 }
@@ -168,12 +161,6 @@ export const getPublicProfile = async ({
   withCollectionCount = false,
   withPublicKey = false
 }: GetPublicProfileParams): Promise<PublicProfile | null> => {
-  const span = getSpan('activities', 'getPublicProfile', {
-    actorId,
-    withCollectionCount,
-    withPublicKey
-  })
-
   try {
     const response = await fetchWithTimeout({
       url: actorId,
@@ -182,7 +169,6 @@ export const getPublicProfile = async ({
       timeoutMilliseconds: 2000
     })
     if (response.status !== 200) {
-      span?.finish()
       return null
     }
 
@@ -190,7 +176,6 @@ export const getPublicProfile = async ({
     const person: Person = (await compact(json)) as Person
 
     if (!withCollectionCount) {
-      span?.finish()
       return {
         id: person.id,
         username: person.preferredUsername,
@@ -238,7 +223,6 @@ export const getPublicProfile = async ({
       )
     ])
 
-    span?.finish()
     return {
       id: person.id,
       username: person.preferredUsername,
@@ -278,8 +262,6 @@ export const getPublicProfile = async ({
       createdAt: new Date(person.published).getTime()
     }
   } catch (error) {
-    Sentry.captureException(error)
-    span?.finish()
     return null
   }
 }
@@ -326,20 +308,15 @@ interface GetActorPostsParams {
 }
 export const getActorPosts = async ({ postsUrl }: GetActorPostsParams) => {
   if (!postsUrl) return []
-  const span = getSpan('activities', 'getActorPosts', {
-    postsUrl
-  })
 
   const response = await fetch(postsUrl, {
     headers: SHARED_HEADERS
   })
   if (response.status !== 200) {
-    span?.finish()
     return []
   }
 
   const json: OrderedCollectionPage = await response.json()
-  span?.finish()
   return json.orderedItems
     .map((item) => {
       // Unsupported activity
@@ -356,13 +333,9 @@ interface GetStatusParams {
   statusId: string
 }
 export const getStatus = async ({ statusId }: GetStatusParams) => {
-  const span = getSpan('activities', 'getStatus', {
-    statusId
-  })
   const response = await fetch(statusId, {
     headers: SHARED_HEADERS
   })
-  span?.finish()
   if (response.status !== 200) {
     return null
   }
@@ -379,10 +352,6 @@ export const sendNote = async ({
   inbox,
   note
 }: SendNoteParams) => {
-  const span = getSpan('activities', 'sendNote', {
-    actorId: currentActor.id,
-    inbox
-  })
   const activity: CreateStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${note.id}/activity`,
@@ -403,7 +372,6 @@ export const sendNote = async ({
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
 }
 
 interface SendAnnounceParams {
@@ -420,10 +388,6 @@ export const sendAnnounce = async ({
     return null
   }
 
-  const span = getSpan('activities', 'sendAnnounce', {
-    actorId: currentActor.id,
-    inbox
-  })
   const activity: AnnounceStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${status.id}/activity`,
@@ -444,7 +408,6 @@ export const sendAnnounce = async ({
     method,
     body: JSON.stringify(activity)
   })
-  span?.finish()
 }
 
 interface DeleteStatusParams {
@@ -457,10 +420,6 @@ export const deleteStatus = async ({
   inbox,
   statusId
 }: DeleteStatusParams) => {
-  const span = getSpan('activities', 'deleteStatus', {
-    actorId: currentActor.id,
-    inbox
-  })
   const activity: DeleteStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${statusId}#delete`,
@@ -482,7 +441,6 @@ export const deleteStatus = async ({
     method,
     body: JSON.stringify(activity)
   })
-  span?.finish()
 }
 
 interface UndoAnnounceParams {
@@ -495,10 +453,6 @@ export const undoAnnounce = async ({
   inbox,
   announce
 }: UndoAnnounceParams) => {
-  const span = getSpan('activities', 'undoAnnounce', {
-    actorId: currentActor.id,
-    inbox
-  })
   const activity: UndoStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${announce.id}#undo`,
@@ -525,7 +479,6 @@ export const undoAnnounce = async ({
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
 }
 
 export const follow = async (
@@ -533,11 +486,6 @@ export const follow = async (
   currentActor: Actor,
   targetActorId: string
 ) => {
-  const span = getSpan('activities', 'follow', {
-    id,
-    actorId: currentActor.id,
-    targetActorId
-  })
   const activity: FollowRequest = {
     '@context': ACTIVITY_STREAM_URL,
     id: `https://${currentActor.domain}/${id}`,
@@ -548,7 +496,6 @@ export const follow = async (
   const publicProfile = await getPublicProfile({ actorId: targetActorId })
   const targetInbox = publicProfile?.endpoints.inbox
   if (!targetInbox) {
-    span?.finish()
     return false
   }
 
@@ -567,15 +514,10 @@ export const follow = async (
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
   return response.status === 202
 }
 
 export const unfollow = async (currentActor: Actor, follow: Follow) => {
-  const span = getSpan('activities', 'unfollow', {
-    actorId: currentActor.id,
-    follow: follow.id
-  })
   const activity: UndoFollow = {
     '@context': ACTIVITY_STREAM_URL,
     id: `https://${currentActor.domain}/${currentActor.id}#follows/${follow.id}/undo`,
@@ -610,7 +552,6 @@ export const unfollow = async (currentActor: Actor, follow: Follow) => {
     method,
     body: JSON.stringify(activity)
   })
-  span?.finish()
   return response.status === 202
 }
 
@@ -619,10 +560,6 @@ export const acceptFollow = async (
   followingInbox: string,
   followRequest: FollowRequest
 ) => {
-  const span = getSpan('activities', 'acceptFollow', {
-    actorId: currentActor.id,
-    followingInbox
-  })
   const activity: AcceptFollow = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${currentActor.id}#accepts/followers`,
@@ -650,7 +587,6 @@ export const acceptFollow = async (
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
   return response.status === 202
 }
 
@@ -663,12 +599,6 @@ interface LikeParams {
 }
 export const sendLike = async ({ currentActor, status }: LikeParams) => {
   if (!status.actor) return
-
-  const span = getSpan('activities', 'sendLike', {
-    actorId: currentActor.id,
-    statusId: status.id
-  })
-
   const activity: LikeStatus = {
     '@context': ACTIVITY_STREAM_URL,
     id: `${currentActor.id}#likes/${statusIdHash(status.id)}`,
@@ -691,7 +621,6 @@ export const sendLike = async ({ currentActor, status }: LikeParams) => {
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
 }
 
 interface UndoLikeParams {
@@ -703,11 +632,6 @@ export const sendUndoLike = async ({
   status
 }: UndoLikeParams) => {
   if (!status.actor) return
-
-  const span = getSpan('activities', 'undoLike', {
-    actorId: currentActor.id,
-    statusId: status.id
-  })
 
   const activity: UndoLike = {
     '@context': ACTIVITY_STREAM_URL,
@@ -736,5 +660,4 @@ export const sendUndoLike = async ({
     },
     body: JSON.stringify(activity)
   })
-  span?.finish()
 }
